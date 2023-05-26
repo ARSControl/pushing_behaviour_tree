@@ -175,7 +175,7 @@ class MoveToApproach(py_trees.behaviour.Behaviour):
                 pass
 
 
-class Approach(py_trees.behaviour.Behaviour()):
+class Approach(py_trees.behaviour.Behaviour):
         def __init__(self,name="Action3"):
                 super(Approach,self).__init__(name)
                 self.blackboard=py_trees.blackboard.Blackboard()
@@ -213,7 +213,7 @@ class Approach(py_trees.behaviour.Behaviour()):
                 pass
 
 
-class PushingTrajectory(py_trees.behaviour.Behaviour()):
+class PushingTrajectory(py_trees.behaviour.Behaviour):
         def __init__(self,name = "Action4"):
                 super(PushingTrajectory,self).__init__(name)
                 self.blackboard=py_trees.blackboard.Blackboard()
@@ -262,7 +262,7 @@ class PushingTrajectory(py_trees.behaviour.Behaviour()):
 
              
 
-class ComputeTrajectory(py_trees.behaviour.Behaviour()):
+class ComputeTrajectory(py_trees.behaviour.Behaviour):
         def __init__(self,name="Action5"):
                 super(ComputeTrajectory,self).__init__(name)
                 self.blackboard=py_trees.blackboard.Blackboard()
@@ -313,7 +313,7 @@ class ComputeTrajectory(py_trees.behaviour.Behaviour()):
         
 
 
-class CheckPushingPaths(py_trees.behaviour.Behaviour()):
+class CheckPushingPaths(py_trees.behaviour.Behaviour):
         def __init__(self,name="Check4"):
                 super(CheckPushingPaths,self).__init__(name)
                 self.blackboard=py_trees.blackboard.Blackboard()
