@@ -3,10 +3,11 @@ import py_trees_ros
 import py_trees_msgs.msg as py_trees_msgs
 from geometry_msgs.msg import PoseStamped
 import rospy
-import components
+import pushing_behaviour_tree.scripts.components as components
 import functools
 import sys
 import py_trees.console as console
+
 def create_root():
 	#behaviours
         root= py_trees.composites.Parallel("ROOT")
