@@ -233,10 +233,10 @@ class PushingTrajectory(py_trees.behaviour.Behaviour):
 
     def setup(self,unused):
         self.feedback_message = "setup"
-        rospy.wait_for_service(
-            'pushing_controller/SetTrajectory')
-        self.set_trajectory = rospy.ServiceProxy(
-            'pushing_controller/SetTrajectory', RobotTrajectory)
+        # rospy.wait_for_service(
+        #     'pushing_controller/SetTrajectory')
+        # self.set_trajectory = rospy.ServiceProxy(
+        #     'pushing_controller/SetTrajectory', RobotTrajectory)
         self.plan = Path
         return True
 
@@ -339,7 +339,7 @@ class CheckPushingPaths(py_trees.behaviour.Behaviour):
         self.resp = GetPushingPathsResponse()
 
     def update(self):
-        if self.resp.nav_msgs/Path != []:
+        if self.resp.paths != []:
             py_trees.common.Status.SUCCESS
         else:
             py_trees.common.Status.FAILURE
