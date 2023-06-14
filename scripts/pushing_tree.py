@@ -40,20 +40,19 @@ def create_root():
     detach_from_object = pbt.DetachfromObj(name="action1")
     move_to_approach = pbt.MoveToApproach(name="action2")
     approach_to_obj = pbt.Approach(name="action3")
-    sequence4 = py_trees.composites.Sequence(name="Sequence")
     execute_pushing_traj = pbt.PushingTrajectory(name="action4")
 
     # struttura albero
     root.add_children([topic_seq, selector1])
     topic_seq.add_children([obj_pose2BB, robot_pose2BB, target_pose2BB])
-    selector1.add_children([obj_at_target, sequence1])
+    selector1.add_children([obj_at_target,sequence1])
     sequence1.add_children([selector2, sequence2])
     selector2.add_children([check_push_traj, compute_traj])
-    sequence2.add_children([selector3, sequence4])
+    sequence2.add_children([selector3, execute_pushing_traj])
     selector3.add_children([position_robot, sequence3])
     sequence3.add_children([selector4, move_to_approach, approach_to_obj])
     selector4.add_children([robot_near_object, detach_from_object])
-    sequence4.add_children([execute_pushing_traj])
+    
 
     return root
 
