@@ -56,30 +56,29 @@ class PositionRobot(py_trees.behaviour.Behaviour):
     def update(self):
         side = self.blackboard.sides[0]
         robot = self.blackboard.robot_pose  # geometry_msgs/Pose
-        thetar = euler_from_quaternion(robot.orientation)[2]
-        pr = np.array([robot.position.x, robot.position.y, thetar])
+        thetar = 0.0#euler_from_quaternion(robot.orientation)[2]
+        pr = np.array([[robot.position.x], [robot.position.y], [thetar]])
         obj = self.blackboard.obj_pose  # geometry_msgs/Pose
-        thetao = euler_from_quaternion(obj.orientation)[2]
-        po = np.array([obj.position.x, obj.position.y, thetao])
+        thetao = 0.0#euler_from_quaternion(obj.orientation)[2]
+        po = np.array([[obj.position.x], [obj.position.y], [thetao]])
         R = np.array([[math.cos(thetao), math.sin(thetao), 0],
                       [-math.sin(thetao), math.cos(thetao), 0],
                       [0, 0, 1]])
-        pr_o = R*(pr-po)
+        pr_o = np.dot(R,(pr-po))
 
         xr_d = self.b*math.cos((2/5)*math.pi*side)
         yr_d = self.b*math.sin((2/5)*math.pi*side)
         thetar_d = math.pi + side*(2/5)*math.pi
-
-        d = np.array([xr_d, yr_d, thetar_d]) - pr_o
-
-        if math.sqrt(d[0]**2 + d[1]**2) < 0.01 & math.abs(d[2]) < 0.1:
+        d = np.array([[xr_d], [yr_d], [thetar_d]]) - pr_o
+        
+        if (math.sqrt(d[0][0]*d[0][0] + d[1][0]*d[1][0]) < 0.01 )& (np.abs(d[2][0]) < 0.1):
             self.feedback_message = "object is in correct position"
             return py_trees.common.Status.SUCCESS
         else:
             self.feedback_message = "object is not in correct position"
             return py_trees.common.Status.FAILURE
 
-    def terminate(self):
+    def terminate(self,new_status):
         pass
 
 
@@ -97,15 +96,14 @@ class CheckRobotNearObject(py_trees.behaviour.Behaviour):
     def update(self):
         obj = self.blackboard.obj_pose
         robot = self.blackboard.robot_pose
-        dist = math.sqrt((obj.position.x - robot.position.x) ^
-                         2 + (obj.position.y - robot.position.y) ^ 2)
+        dist = math.sqrt((obj.position.x - robot.position.x)**2 + (obj.position.y - robot.position.y)**2)
         if dist < 0.1:
             self.feedback_message = "robot near object"
             return py_trees.common.Status.FAILURE
         self.feedback_message = "robot far to object"
         return py_trees.common.Status.SUCCESS
 
-    def terminate(self):
+    def terminate(self, new_status):
         pass
 
 
@@ -141,7 +139,7 @@ class DetachfromObj(py_trees.behaviour.Behaviour):
         else:
             return py_trees.common.Status.FAILURE
 
-    def terminate(self):
+    def terminate(self, new_status):
         pass
 
 
@@ -175,7 +173,7 @@ class MoveToApproach(py_trees.behaviour.Behaviour):
 
     def update(self):
         robot = self.blackboard.robot_pose
-        thetar = euler_from_quaternion(robot.orientation)[2]
+        thetar = 0.0#euler_from_quaternion(robot.orientation)[2]
         pr = np.array([robot.position.x, robot.position.y, thetar])
         dd = self.blackboard.pr_d - pr
         if math.sqrt(dd[0]**2 + dd[1]**2) < 0.01 & math.abs(dd[2]) < 0.1:
@@ -183,7 +181,7 @@ class MoveToApproach(py_trees.behaviour.Behaviour):
         else:
             return py_trees.common.Status.FAILURE
 
-    def terminate(self):
+    def terminate(self, new_status):
         pass
 
 
@@ -222,7 +220,7 @@ class Approach(py_trees.behaviour.Behaviour):
         else:
             return py_trees.common.Status.FAILURE
 
-    def terminate(self):
+    def terminate(self, new_status):
         pass
 
 
@@ -273,7 +271,7 @@ class PushingTrajectory(py_trees.behaviour.Behaviour):
             else:
                 return py_trees.common.Status.FAILURE
 
-    def terminate(self):
+    def terminate(self, new_status):
         pass
 
 
@@ -294,9 +292,11 @@ class ComputeTrajectory(py_trees.behaviour.Behaviour):
         self.R_p = 0.57
         self.R_m = -0.57
         self.side_nr = 5
+        self.lock = threading.Lock()
         return True
 
     def initialise(self):
+        self.feedback_message = "initialize"
         req = GetPushingPathsRequest()
         # Compose request
         req.start = self.obj  # posizione oggetto
@@ -307,23 +307,24 @@ class ComputeTrajectory(py_trees.behaviour.Behaviour):
         req.b_ = self.b  # distanza quando oggetto e robot sono vicini
         req.sides_nr = self.side_nr  # numero di lati (5 se è un pentagono)
         #self.t1 = threading.Thread(target=self.ask_planner, args=([req]))
-        # self.t1.start()  # avvio il thread
+        #self.t1.run()  # avvio il thread
 
     def update(self):
-
+        self.feedback_message = "update"
         if True:#self.t1.is_alive():
-            py_trees.common.Status.RUNNING
+            return py_trees.common.Status.SUCCESS
 
         else:
             if self.plan != []:
                 return py_trees.common.Status.SUCCESS
             return py_trees.common.Status.FAILURE
 
-    def terminate(self):
+    def terminate(self,unused):
         pass
 
     def ask_planner(self, req):
-        self.plan = self.get_plan(req[0]) 
+        with self.lock:
+            self.plan = self.get_plan(req[0]) 
 
 class CheckPushingPaths(py_trees.behaviour.Behaviour):
     def __init__(self, name="Check4"):
@@ -335,10 +336,12 @@ class CheckPushingPaths(py_trees.behaviour.Behaviour):
         return True
 
     def initialise(self):
+        self.feedback_message = "initialize"
         self.resp = GetPushingPathsResponse()
 
     def update(self):
+        self.feedback_message = "update"
         if self.resp.paths != []:
-            py_trees.common.Status.SUCCESS
+            return py_trees.common.Status.SUCCESS
         else:
-            py_trees.common.Status.FAILURE
+            return py_trees.common.Status.FAILURE
