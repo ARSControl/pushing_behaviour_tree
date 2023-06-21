@@ -36,7 +36,7 @@ class CheckObjectInTarget(py_trees.behaviour.Behaviour):
             self.feedback_message = "object at target"
             return py_trees.common.Status.SUCCESS
         self.feedback_message = "object not at target"
-        return py_trees.common.Status.FAILURE
+        return py_trees.common.Status.FAILURE   
 
     def terminate(self, unused):
         pass
@@ -304,15 +304,16 @@ class ComputeTrajectory(py_trees.behaviour.Behaviour):
         req.map = self.map_msg
         req.R_p = self.R_p  # raggio sterzata sinistra
         req.R_m = self.R_m  # raggio sterzata destra
-        req.b = self.b  # distanza quando oggetto e robot sono vicini
-        req.side_nr = self.side_nr  # numero di lati (5 se è un pentagono)
-        self.t1 = threading.Thread(target=self.ask_planner, args=(req))
-        self.t1.start()  # avvio il thread
+        req.b_ = self.b  # distanza quando oggetto e robot sono vicini
+        req.sides_nr = self.side_nr  # numero di lati (5 se è un pentagono)
+        #self.t1 = threading.Thread(target=self.ask_planner, args=([req]))
+        # self.t1.start()  # avvio il thread
 
     def update(self):
 
-        if self.t1.run():
+        if True:#self.t1.is_alive():
             py_trees.common.Status.RUNNING
+
         else:
             if self.plan != []:
                 return py_trees.common.Status.SUCCESS
@@ -322,9 +323,7 @@ class ComputeTrajectory(py_trees.behaviour.Behaviour):
         pass
 
     def ask_planner(self, req):
-        resp = self.get_plan(req)
-        self.plan = resp.nav_msgs/Path
-
+        self.plan = self.get_plan(req[0]) 
 
 class CheckPushingPaths(py_trees.behaviour.Behaviour):
     def __init__(self, name="Check4"):
