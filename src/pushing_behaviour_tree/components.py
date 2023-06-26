@@ -299,15 +299,23 @@ class ComputeTrajectory(py_trees.behaviour.Behaviour):
         self.feedback_message = "initialize"
         req = GetPushingPathsRequest()
         # Compose request
-        req.start = self.obj  # posizione oggetto
-        req.goal = self.target  # posizione target
+        req.start.x = self.obj.position.x  # posizione oggetto
+        req.start.y = self.obj.position.y
+        q = [self.obj.orientation.x, self.obj.orientation.y,
+             self.obj.orientation.z, self.obj.orientation.w]
+        req.start.theta = euler_from_quaternion(q)[2]  # posizione oggetto
+        req.goal.x = self.target.position.x  # posizione target 
+        req.goal.y = self.target.position.y
+        q = [self.target.orientation.x, self.target.orientation.y,
+             self.target.orientation.z, self.target.orientation.w]
+        req.goal.theta = euler_from_quaternion(q)[2]  # posizione target    
         req.map = self.map_msg
         req.R_p = self.R_p  # raggio sterzata sinistra
         req.R_m = self.R_m  # raggio sterzata destra
         req.b_ = self.b  # distanza quando oggetto e robot sono vicini
         req.sides_nr = self.side_nr  # numero di lati (5 se è un pentagono)
-        #self.t1 = threading.Thread(target=self.ask_planner, args=([req]))
-        #self.t1.run()  # avvio il thread
+        self.t1 = threading.Thread(target=self.ask_planner, args=([req]))
+        self.t1.run()  # avvio il thread
 
     def update(self):
         self.feedback_message = "update"
@@ -324,7 +332,7 @@ class ComputeTrajectory(py_trees.behaviour.Behaviour):
 
     def ask_planner(self, req):
         with self.lock:
-            self.plan = self.get_plan(req[0]) 
+            self.plan = self.get_plan(req) 
 
 class CheckPushingPaths(py_trees.behaviour.Behaviour):
     def __init__(self, name="Check4"):

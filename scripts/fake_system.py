@@ -2,7 +2,7 @@
 import numpy as np
 import rospy
 import pickle
-
+import time
 from geometry_msgs.msg import PoseStamped
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 from pushing_msgs.srv import RobotTrajectory, RobotTrajectoryRequest, SetTarget, SetTargetRequest, GetPushingPaths, GetPushingPathsRequest, SetObstacles
@@ -81,6 +81,7 @@ class FakeSystem:
         return True
 
     def planner_cb(self, req: GetPushingPathsRequest):
+        time.sleep(3)
         with open('/home/filippo/pushing_ws/src/pushing_behaviour_tree/res/objs.pkl','rb') as f:
             res = pickle.load(f)
             return res
