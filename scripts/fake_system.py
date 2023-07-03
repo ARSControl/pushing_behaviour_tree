@@ -82,7 +82,7 @@ class FakeSystem:
 
     def planner_cb(self, req: GetPushingPathsRequest):
         time.sleep(3)
-        with open('/home/filippo/pushing_ws/src/pushing_behaviour_tree/res/objs.pkl','rb') as f:
+        with open('/home/federico/catkin_ws/src/pushing_behaviour_tree/res/objs.pkl','rb') as f:
             res = pickle.load(f)
             return res
         

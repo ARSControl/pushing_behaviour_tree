@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import math
 import rospy
 from geometry_msgs.msg import PoseStamped
@@ -20,14 +22,4 @@ if __name__=="__main__":
         p3.publish(tmsg)
         t = t+0.01
         r.sleep()
-    #r = rospy.Rate(100)
-    #t = 0
-    #omsg= PoseStamped()
-    #omsg.pose.position.x = 1.0
-    #tmsg = PoseStamped()
-    #while(not rospy.is_shutdown()):
-        #tmsg.pose.position.x = math.cos(t)
-        #p1.publish(omsg)
-        #p3.publish(tmsg)
-        #t= t+0.01
-        #r.sleep()
+  
