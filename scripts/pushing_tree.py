@@ -51,7 +51,7 @@ def create_root():
     selector2.add_children([check_push_traj,compute_traj])
     sequence2.add_children([ selector3,execute_pushing_traj])
     selector3.add_children([position_robot, sequence3])
-    sequence3.add_children([selector4,approach_to_obj])
+    sequence3.add_children([selector4,move_to_approach,approach_to_obj])
     selector4.add_children([ robot_near_object,detach_from_object])
     
 

@@ -46,9 +46,11 @@ class FakeSystem:
         self.mode = "POSE"
 
     def set_obstacles(self, req):
+        print("set obstacle called")
         return True
 
     def set_target(self, req: SetTargetRequest):
+        print("set target called")
         self.mode = "POSE"
         xi = self.rmsg.pose.position.x
         yi = self.rmsg.pose.position.y
@@ -68,6 +70,7 @@ class FakeSystem:
         return True
 
     def trajectory_cb(self, req: RobotTrajectoryRequest):
+        print("set trajectoy called")
         self.mode = "TRAJECTORY"
         self.robot_trajlist = np.ndarray(shape=(req.length,3),dtype=float)
         for i in range(req.length):
@@ -81,6 +84,7 @@ class FakeSystem:
         return True
 
     def planner_cb(self, req: GetPushingPathsRequest):
+        print("plan called")
         time.sleep(3)
         with open('/home/federico/catkin_ws/src/pushing_behaviour_tree/res/objs.pkl','rb') as f:
             res = pickle.load(f)

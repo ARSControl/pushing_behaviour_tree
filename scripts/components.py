@@ -2,6 +2,7 @@ import py_trees
 import math
 import rospy
 from geometry_msgs.msg import PoseStamped, Pose
+from std_msgs.msg import Float64MultiArray
 from math import sqrt
 import py_trees_msgs.msg as py_trees_msgs
 from tf.transformations import euler_from_quaternion
@@ -155,6 +156,7 @@ class MoveToApproach(py_trees.behaviour.Behaviour):
         return True
 
     def initialise(self):
+        print("initialize")
         self.feedback_message = "initialize"
         side = self.blackboard.sides[0]
         robot = self.blackboard.robot_pose
@@ -182,12 +184,12 @@ class MoveToApproach(py_trees.behaviour.Behaviour):
         thetar = euler_from_quaternion(q)[2]
         pr = np.array([robot.position.x, robot.position.y, thetar])
         dd = pr - self.blackboard.pr_d
-        if self.tend <  rospy.Time.now() + rospy.Duration(30):
+        if rospy.Time.now() < self.tend + rospy.Duration(30):
             if math.sqrt(dd[0]**2 + dd[1]**2) < 0.01 & np.abs(dd[2])<0.1:
                 return py_trees.common.Status.SUCCESS
             else:
                 return py_trees.common.Status.RUNNING
-        return py_trees.common.Status.FAILURE
+        return py_trees.common.Status.SUCCESS #TODO change
             
 
     def terminate(self,new_status):
@@ -242,6 +244,8 @@ class Approach(py_trees.behaviour.Behaviour):
     def terminate(self,new_status):
         pass
 
+    
+
 
 class PushingTrajectory(py_trees.behaviour.Behaviour):
     def __init__(self, name="PushingTraj"):
@@ -254,8 +258,22 @@ class PushingTrajectory(py_trees.behaviour.Behaviour):
          #   'pushing_controller/SetTrajectory')
         #self.set_trajectory = rospy.ServiceProxy(
          #   'pushing_controller/SetTrajectory', RobotTrajectory)
-        self.plan = Path
+        self.plan = Float64MultiArray()
         return True
+
+    def path_to_trajectory_msg(self,path):
+        traj = Float64MultiArray()
+        q = path.poses[0].pose.orientation
+        old_theta = euler_from_quaternion([q.x,q.y,q.z,q.w])[2]
+        for pose in path.poses:
+            q = pose.pose.orientation
+            theta = euler_from_quaternion([q.x,q.y,q.z,q.w])[2]
+            traj.data.append(pose.pose.position.x + self.b_*cos(theta))
+            traj.data.append(pose.pose.position.y + self.b_*sin(theta))
+            traj.data.append(theta)
+            traj.data.extend([0.05,((theta-old_theta)/0.1)])
+            old_theta = theta
+        return traj
 
     def initialise(self):
         # rospy.wait_for_service('pushing_controller/SetTrajectory',RobotTrajectory)
@@ -263,20 +281,24 @@ class PushingTrajectory(py_trees.behaviour.Behaviour):
         req = RobotTrajectoryRequest()
         req.length = 100
         req.constraints = 1
-        req.trajectory = self.plan[0]
+        req.trajectory = self.path_to_trajectory_msg(self.blackboard)
         # TODO set trajectory
         resp = self.set_trajectory(req)
         self.tend = rospy.Time.now() + rospy.Duration(req.length*0.1+2.5)
         # TODO set final target pose
         target = self.blackboard.target_pose
-        thetat = euler_from_quaternion(target.orientation)[2]
+        q = [target.orientation.x, target.orientation.y,
+             target.orientation.z, target.orientation.w]
+        thetat = euler_from_quaternion(q)[2]
         self.pt = np.array([target.position.x, target.position.y, thetat])
         return resp.ok
 
     def update(self):
         #target= self.blackboard.target_pose
         obj = self.blackboard.obj_pose
-        thetao = euler_from_quaternion(obj.orientation)[2]
+        q = [obj.orientation.x, obj.orientation.y,
+             obj.orientation.z, obj.orientation.w]
+        thetao = euler_from_quaternion(q)[2]
         po = np.array([obj.position.x, obj.position.y, thetao])
         #thetat = euler_from_quaternion(target.orientation)[2]
         #pt = np.array([target.position.x,target.position.y,thetat])
@@ -338,20 +360,20 @@ class ComputeTrajectory(py_trees.behaviour.Behaviour):
 
     def update(self):
         self.feedback_message = "update"
-        if True:
-            py_trees.common.Status.SUCCESS
-        #else:
-        #if self.plan != []:
-            #self.feedback_message = "traj is computed"
-            #return py_trees.common.Status.SUCCESS
+        if self.t1.is_alive():
+            return py_trees.common.Status.RUNNING
+        if self.plan != []:
+            self.feedback_message = "traj is computed"
+            return py_trees.common.Status.SUCCESS
         return py_trees.common.Status.FAILURE
-
+    
     def terminate(self,unused):
         pass
 
     def ask_planner(self, req):
         with self.lock:
             self.plan = self.get_plan(req)
+            self.blackboard.set("plan",self.plan)
 
 
 class CheckPushingPaths(py_trees.behaviour.Behaviour):
@@ -365,11 +387,11 @@ class CheckPushingPaths(py_trees.behaviour.Behaviour):
 
     def initialise(self):
         self.feedback_message = "initialize"
-        self.resp = GetPushingPathsResponse()
+        self.resp = self.blackboard.get("plan")
 
     def update(self):
-        self.feedback_message = "update"
-        if self.resp.paths != []:
+        self.feedback_message = len(self.resp.paths)
+        if len(self.resp.paths)> 0 :
             py_trees.common.Status.SUCCESS
         else:
             py_trees.common.Status.FAILURE
