@@ -19,7 +19,7 @@ def create_root():
     # behaviours
     root = py_trees.composites.Parallel(name="ROOT")
     # topic sequence
-    topic_seq = py_trees.composites.Parallel(name="Topics2BB")
+    topic_par = py_trees.composites.Parallel(name="Topics2BB")
     # riporto sulla BB la posizione dell'oggetto
     obj_pose2BB = py_trees_ros.subscribers.ToBlackboard(
         name="obj2BB", topic_name="vrpn_client_node/Box/pose", topic_type=PoseStamped, blackboard_variables={'obj_pose': 'pose'})
@@ -30,9 +30,10 @@ def create_root():
     target_pose2BB = py_trees_ros.subscribers.ToBlackboard(
         name="target2BB", topic_name="target/pose", topic_type=PoseStamped, blackboard_variables={'target_pose': 'pose'})
     always_running = py_trees.behaviours.Running(name="AlwaysRunning")
+    always_running2= py_trees.behaviours.Running(name="AlwaysRunning2")
     selector1 = py_trees.composites.Selector(name="Selector1")
     obj_at_target = pbt.CheckObjectInTarget(name="checkobjintarget")
-    sequence1 = py_trees.composites.Sequence(name="Sequence1")
+    sequence1 = pbt.SequenceNoMem(name="SequenceNoMem",memory=False)
     selector2 = py_trees.composites.Selector(name="Selector2")
     check_push_traj = pbt.CheckPushingPaths(name="checkpushtraj")
     compute_traj = pbt.ComputeTrajectory(name="computepushtraj")
@@ -48,17 +49,18 @@ def create_root():
     execute_pushing_traj = pbt.PushingTrajectory(name="executepushtraj")
 
     # struttura albero
-    root.add_children([topic_seq, selector1])
-    topic_seq.add_children([obj_pose2BB, robot_pose2BB, target_pose2BB])
+    root.add_children([topic_par, selector1])
+    topic_par.add_children([obj_pose2BB, robot_pose2BB, target_pose2BB])
     selector1.add_children([obj_at_target,sequence1])
-    sequence1.add_children([selector2, sequence2])
+    sequence1.add_children([selector2,selector3, execute_pushing_traj])
     selector2.add_children([check_push_traj,compute_traj])
-    sequence2.add_children([ selector3,execute_pushing_traj])
-    selector3.add_children([position_robot, sequence3])
-    sequence3.add_children([selector4,move_to_approach,approach_to_obj])
-    selector4.add_children([robot_near_object,detach_from_object])
+    selector3.add_children([position_robot,sequence2])
+    sequence2.add_children([selector4,move_to_approach,approach_to_obj])
+    selector4.add_children([robot_near_object, detach_from_object])
     blk = py_trees.blackboard.Blackboard()
-    blk.set("obstacles",load_map('/home/federico/catkin_ws/src/pushing_behaviour_tree/res/map6.png'))
+    obst = load_map('/home/filippo/pushing_ws/src/pushing_supervisor/res/map6.png')
+    blk.set("obstacles",obst)
+    blk.set("b_",0.085)
 
 
     return root

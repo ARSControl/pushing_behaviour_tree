@@ -1,5 +1,6 @@
 import py_trees
 import math
+from copy import deepcopy
 import rospy
 from geometry_msgs.msg import PoseStamped, Pose
 from std_msgs.msg import Float64MultiArray
@@ -8,6 +9,7 @@ import py_trees_msgs.msg as py_trees_msgs
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 from pushing_msgs.srv import RobotTrajectory, RobotTrajectoryRequest, GetPushingPathsRequest,  GetPushingPaths, SetTargetRequest, SetTarget, SetObstacles, SetObstaclesRequest
 from nav_msgs.msg import OccupancyGrid, Path
+import imageio.v2 as imageio
 import threading
 import numpy as np
 
@@ -16,7 +18,6 @@ class CheckObjectInTarget(py_trees.behaviour.Behaviour):
     def __init__(self, name="CheckObjinTarg"):
         super(CheckObjectInTarget, self).__init__(name)
         self.blackboard = py_trees.blackboard.Blackboard()
-        print(self.blackboard)
 
     def setup(self, unused):
         self.feedback_message = "setup"
@@ -51,13 +52,15 @@ class PositionRobot(py_trees.behaviour.Behaviour):
         self.feedback_message = "setup"
         print("setup positionrobot")
         self.blackboard.sides = [0, 1, 2, 3]
-        self.b_ = 0.12
+        self.b_ = self.blackboard.get("b_")
+        
         return True
 
     def update(self):
+        
         self.feedback_message = "update"
         print("update positionrobot")
-        side = self.blackboard.plan.sides[0]
+        side = self.blackboard.current_side
         robot = self.blackboard.robot_pose
         q = [robot.orientation.x, robot.orientation.y,
                   robot.orientation.z,robot.orientation.w]
@@ -70,6 +73,9 @@ class PositionRobot(py_trees.behaviour.Behaviour):
         xr_d = obj.position.x + self.b_*math.cos(thetao + (side * (2/4)*math.pi))
         yr_d = obj.position.y + self.b_*math.sin(thetao + (side * (2/4)*math.pi))
         thetar_d = thetao + (side*(2/4)*math.pi) + math.pi
+        thetar_d = np.arctan2(np.sin(thetar_d), np.cos(thetar_d))
+        print("robot desired position")
+        print([xr_d,yr_d,thetar_d])
         d = np.array([[xr_d], [yr_d], [thetar_d]]) - pr
         if (math.sqrt(d[0][0]*d[0][0] + d[1][0]*d[1][0]) < 0.01) & (np.abs(d[2][0]) < 0.1):
             self.feedback_message = "object is in correct position"
@@ -164,7 +170,7 @@ class DetachfromObj(py_trees.behaviour.Behaviour):
         if rospy.Time.now() < self.tend + rospy.Duration(30):
             if math.sqrt(d[0]**2 + d[1]**2) < 0.01:
                 self.feedback_message = "robot is detached in first useful position"
-                return py_trees.common.Status.SUCCESS
+                return py_trees.common.Status.RUNNING
             else:
                  return py_trees.common.Status.RUNNING
         return py_trees.common.Status.FAILURE
@@ -186,13 +192,13 @@ class MoveToApproach(py_trees.behaviour.Behaviour):
         print("setup movetoappr")
         self.blackboard.sides = [0, 1, 2, 3]
         self.obst = Pose()
-        self.obstacles = self.blackboard.get("obstacles")
+        self.obstacles = deepcopy(self.blackboard.get("obstacles"))
         return True
     
     def initialise(self):
         print("initialize movetoappr")
         self.feedback_message = "initialize"
-        side = self.blackboard.plan.sides[0]
+        side = self.blackboard.get("current_side")
         obj = self.blackboard.obj_pose
         self.obst.position.x = obj.position.x
         self.obst.position.y = obj.position.y
@@ -252,18 +258,22 @@ class Approach(py_trees.behaviour.Behaviour):
         super(Approach,self).__init__(name)
         self.blackboard = py_trees.blackboard.Blackboard()
         self.client = rospy.ServiceProxy("/pushing_controller/SetTarget",   SetTarget)
+        self.set_obstacles = rospy.ServiceProxy("pushing_controller/SetObstacles",   SetObstacles)
         self.pub = rospy.Publisher("pushing_tree/robot_target", PoseStamped, queue_size=1)
         self.prd2 = []
     def setup(self,unused):
         self.feedback_message = "setup"
         print("setup approach")
-        self.b_ = 0.12
+        self.b_ = self.blackboard.get("b_")
         self.blackboard.sides = [0, 1, 2, 3]
         return True
     def initialise(self):
         self.feedback_message = "initalise"
         print("initialise approach")
-        side = self.blackboard.plan.sides[0]
+        req = SetObstaclesRequest()
+        req.obstacles = deepcopy(self.blackboard.get("obstacles"))
+        self.set_obstacles(req)
+        side = self.blackboard.current_side
         obj = self.blackboard.obj_pose
         print(obj)
         q = [obj.orientation.x,obj.orientation.y,
@@ -275,7 +285,7 @@ class Approach(py_trees.behaviour.Behaviour):
         thetar_2 = np.arctan2(np.sin(thetar_2),np.cos(thetar_2))
         self.prd2 = np.array([xr_2,yr_2,thetar_2])
         req = SetTargetRequest()
-        req.enable_constraints = 2
+        req.enable_constraints = 0
         req.target.x = xr_2
         req.target.y = yr_2
         req.target.theta = thetar_2
@@ -326,7 +336,7 @@ class PushingTrajectory(py_trees.behaviour.Behaviour):
     def setup(self,unused):
         self.feedback_message = "setup"
         print("setup pushtraj")
-        self.b_ = 0.12
+        self.b_ = self.blackboard.get("b_")
         self.pub = rospy.Publisher("pushing_tree/object_target", Path, queue_size=1 )
         return True
  
@@ -353,12 +363,13 @@ class PushingTrajectory(py_trees.behaviour.Behaviour):
         print("initilize pushing")
         self.path_target_ = self.plan.paths.pop(0)
         self.pub.publish(self.path_target_)
-        self.plan.sides.pop(0)
+        self.blackboard.set("current_side", self.plan.sides.pop(0))
         req = RobotTrajectoryRequest()
         req.length = len(self.path_target_.poses)
         req.constraints = 1
         req.trajectory = self.path_to_trajectory_msg(self.path_target_)
         resp = self.set_trajectory(req)
+        print("sending trajectory")
         self.tend = rospy.Time.now() + rospy.Duration(req.length*0.1+2.5)
         target = self.path_target_.poses[-1].pose
         q = [target.orientation.x, target.orientation.y,
@@ -385,6 +396,7 @@ class PushingTrajectory(py_trees.behaviour.Behaviour):
                 return py_trees.common.Status.FAILURE
             
     def terminate(self,unused):
+        print("Trajectory")
         pass
 
 
@@ -399,13 +411,11 @@ class ComputeTrajectory(py_trees.behaviour.Behaviour):
         self.get_plan = rospy.ServiceProxy(
             '/pushing_planner/GetPushingPlan', GetPushingPaths)
         self.plan = []
-        self.target = self.blackboard.target_pose
-        self.obj = self.blackboard.obj_pose
-        self.b = 0.12
-        self.map_msg = OccupancyGrid()
-        self.R_p = 0.57
-        self.R_m = -0.57
-        self.side_nr = 5
+        self.b_ = self.blackboard.get("b_")
+        self.map_msg = self.load_map('/home/filippo/pushing_ws/src/pushing_supervisor/res/map6.png')
+        self.R_p = 0.47
+        self.R_m = -0.47
+        self.side_nr = 4
         self.lock = threading.Lock()
         return True
 
@@ -414,6 +424,9 @@ class ComputeTrajectory(py_trees.behaviour.Behaviour):
         print("initialise computetraj")
         req = GetPushingPathsRequest()
         # Compose request
+        self.target = self.blackboard.target_pose
+        self.obj = self.blackboard.obj_pose
+        
         req.start.x = self.obj.position.x  # posizione oggetto
         req.start.y = self.obj.position.y
         q = [self.obj.orientation.x,self.obj.orientation.y,
@@ -427,7 +440,7 @@ class ComputeTrajectory(py_trees.behaviour.Behaviour):
         req.map = self.map_msg
         req.R_p = self.R_p  # raggio sterzata sinistra
         req.R_m = self.R_m  # raggio sterzata destra
-        req.b_ = self.b  # distanza quando oggetto e robot sono vicini
+        req.b_ = self.b_  # distanza quando oggetto e robot sono vicini
         req.sides_nr = self.side_nr  # numero di lati (5 se è un pentagono)
         self.t1 = threading.Thread(target=self.ask_planner, args=([req]))
         self.t1.run()  # avvio il thread
@@ -446,11 +459,38 @@ class ComputeTrajectory(py_trees.behaviour.Behaviour):
         pass
 
     def ask_planner(self, req):
+        print("planning Request")
         with self.lock:
             self.plan = self.get_plan(req)
             self.plan.sides = list(self.plan.sides)
             self.blackboard.set("plan",self.plan)
+            self.blackboard.set("current_side",self.plan.sides[0])
 
+    def load_map(self, path):
+        if path == "":
+            return
+        im = imageio.imread(path)
+        map_msg = OccupancyGrid()
+        map_msg.info.origin.position.x = -0.75
+        map_msg.info.origin.position.y = -1.0
+        map_msg.info.origin.orientation.w = 1.0
+        map_msg.info.resolution = 0.05
+        map_msg.info.width = im.shape[1]
+        map_msg.info.height = im.shape[0]
+        map_msg.header.frame_id = "world"
+        im = 100 - im / 255 * 100
+        count = 0
+        obstacles = []
+        for i in range(im.shape[0]):
+            for j in range(im.shape[1]):
+                map_msg.data.append(int(im[im.shape[0]-1-i][j]))
+                if im[im.shape[0]-1-i][j] > 70:
+                    obspose = Pose()
+                    obspose.position.y = map_msg.info.origin.position.y + (i+0.5)*map_msg.info.resolution
+                    obspose.position.x = map_msg.info.origin.position.x + (j+0.5)*map_msg.info.resolution
+                    obspose.orientation.w = 1.0
+                    obstacles.append(obspose)
+        return map_msg
 
 class CheckPushingPaths(py_trees.behaviour.Behaviour):
     def __init__(self, name="CheckPushTraj"):
