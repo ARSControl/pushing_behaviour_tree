@@ -9,6 +9,10 @@ import pushing_behaviour_tree as pbt
 import functools
 import sys
 import py_trees.console as console
+from geometry_msgs.msg import PoseStamped, Pose
+from visualization_msgs.msg import MarkerArray, Marker
+import imageio.v2 as imageio
+from nav_msgs.msg import OccupancyGrid, Path
 
 
 def create_root():
@@ -53,7 +57,9 @@ def create_root():
     selector3.add_children([position_robot, sequence3])
     sequence3.add_children([selector4,move_to_approach,approach_to_obj])
     selector4.add_children([robot_near_object,detach_from_object])
-    
+    blk = py_trees.blackboard.Blackboard()
+    blk.set("obstacles",load_map('/home/federico/catkin_ws/src/pushing_behaviour_tree/res/map6.png'))
+
 
     return root
 
@@ -61,13 +67,38 @@ def create_root():
 def shutdown(behaviour_tree):
     behaviour_tree.interrupt()
 
+def load_map(path):
+        if path == "":
+            return
+        im = imageio.imread(path)
+        map_msg = OccupancyGrid()
+        map_msg.info.origin.position.x = -0.75
+        map_msg.info.origin.position.y = -1.0
+        map_msg.info.origin.orientation.w = 1.0
+        map_msg.info.resolution = 0.05
+        map_msg.info.width = im.shape[1]
+        map_msg.info.height = im.shape[0]
+        map_msg.header.frame_id = "world"
+        im = 100 - im / 255 * 100
+        count = 0
+        obstacles = []
+        for i in range(im.shape[0]):
+            for j in range(im.shape[1]):
+                map_msg.data.append(int(im[im.shape[0]-1-i][j]))
+                if im[im.shape[0]-1-i][j] > 70:
+                    obspose = Pose()
+                    obspose.position.y = map_msg.info.origin.position.y + (i+0.5)*map_msg.info.resolution
+                    obspose.position.x = map_msg.info.origin.position.x + (j+0.5)*map_msg.info.resolution
+                    obspose.orientation.w = 1.0
+                    obstacles.append(obspose)
+        return obstacles
 
 def main():
     print("main")
     rospy.init_node("tree")
     root = create_root()
     behaviour_tree = py_trees_ros.trees.BehaviourTree(root)
-
+    
     rospy.on_shutdown(functools.partial(shutdown, behaviour_tree))
     if not behaviour_tree.setup(timeout=15):
         console.logerror("failed to setup the tree,aborting.")

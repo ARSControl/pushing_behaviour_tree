@@ -5,7 +5,7 @@ import pickle
 import time
 from geometry_msgs.msg import PoseStamped
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
-from pushing_msgs.srv import RobotTrajectory, RobotTrajectoryRequest, SetTarget, SetTargetRequest, GetPushingPaths, GetPushingPathsRequest, SetObstacles
+from pushing_msgs.srv import RobotTrajectory, RobotTrajectoryRequest, SetTarget, SetTargetRequest, GetPushingPaths, GetPushingPathsRequest, SetObstacles, SetObstaclesRequest
 
 
 class FakeSystem:
@@ -45,7 +45,7 @@ class FakeSystem:
         self.theta_diff = 0.0
         self.mode = "POSE"
 
-    def set_obstacles(self, req):
+    def set_obstacles(self, req: SetObstaclesRequest):
         print("set obstacle called")
         return True
 
