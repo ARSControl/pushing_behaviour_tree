@@ -15,6 +15,7 @@ import imageio.v2 as imageio
 from nav_msgs.msg import OccupancyGrid, Path
 
 
+
 def create_root():
     # behaviours
     root = py_trees.composites.Parallel(name="ROOT")
@@ -98,6 +99,7 @@ def load_map(path):
 def main():
     print("main")
     rospy.init_node("tree")
+    py_trees.logging.level = py_trees.logging.Level.DEBUG
     root = create_root()
     behaviour_tree = py_trees_ros.trees.BehaviourTree(root)
     
