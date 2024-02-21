@@ -15,6 +15,7 @@ from nav_msgs.msg import OccupancyGrid, Path
 import imageio.v2 as imageio
 import threading
 import numpy as np
+from pushing_behaviour_tree.traj_validator import check_traj, transform_trajectory
 
 
 class CheckObjectInTarget(py_trees.behaviour.Behaviour):
@@ -681,11 +682,13 @@ class CheckPushingPaths(py_trees.behaviour.Behaviour):
         super(CheckPushingPaths, self).__init__(name)
         self.blackboard = py_trees.blackboard.Blackboard()
         self.curr_path = None
+        self.R_p = 0.47
 
     def setup(self, unused):
         self.feedback_message = "setup"
         self.stop_robot = rospy.ServiceProxy(
             '/pushing_controller/Stop', Trigger)
+        self.b_ = self.blackboard.get("b_")
         print("setup checkpushtraj")
         return True
 
@@ -723,7 +726,7 @@ class CheckPushingPaths(py_trees.behaviour.Behaviour):
             return py_trees.common.Status.FAILURE
 
         try:
-            mpc_pred = self.blackboard.get("mpc_path")
+            #mpc_pred = self.blackboard.get("mpc_path")
             mpc_ref = self.blackboard.get("mpc_ref")
         except:
             self.feedback_message = "default on success since no data is available"
@@ -739,18 +742,20 @@ class CheckPushingPaths(py_trees.behaviour.Behaviour):
              self.blackboard.obj_pose.orientation.z, self.blackboard.obj_pose.orientation.w]
         thetao = euler_from_quaternion(
             q)[2] + (self.curr_side*(2/4)*math.pi) + math.pi
+        p_r = (obj_x-self.b_*math.cos(thetao),obj_y-self.b_*math.sin(thetao),thetao)
+        robot_traj = transform_trajectory(mpc_ref)
 
-        
-
-
-        if dist(mpc_pred[0].pose,self.blackboard.obj_pose)[0] < 0.01:
-            d_start = dist(mpc_pred[0].pose,mpc_ref[0].pose)[0]
-            d_end = dist(mpc_pred[-1].pose,mpc_ref[-1].pose)[0]
-            if (d_start > d_end):
-                return py_trees.common.Status.SUCCESS 
-            else:
-                self.feedback_message = "mpc not converging"
-                return py_trees.common.Status.FAILURE
+        if not check_traj(p_r,robot_traj,self.R_p, self.blackboard.get("obstacles")):
+            self.feedback_message = "no valid trajectory found"
+            return py_trees.common.Status.FAILURE
+        # if dist(mpc_pred[0].pose,self.blackboard.obj_pose)[0] < 0.01:
+        #     d_start = dist(mpc_pred[0].pose,mpc_ref[0].pose)[0]
+        #     d_end = dist(mpc_pred[-1].pose,mpc_ref[-1].pose)[0]
+        #     if (d_start > d_end):
+        #         return py_trees.common.Status.SUCCESS 
+        #     else:
+        #         self.feedback_message = "mpc not converging"
+        #         return py_trees.common.Status.FAILURE
         return py_trees.common.Status.SUCCESS
         # obj_x = self.blackboard.obj_pose.position.x
         # obj_y = self.blackboard.obj_pose.position.y
